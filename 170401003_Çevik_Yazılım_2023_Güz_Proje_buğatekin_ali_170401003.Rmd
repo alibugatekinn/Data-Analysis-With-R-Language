@@ -1,0 +1,273 @@
+---
+title: 'Proje Raporu: Ali Buğatekin 170401003'
+output:
+  html_document:
+    df_print: paged
+---
+
+## Q1: Problem Tanımı
+Şirketim bir Film Yapım Danışmanlığı Şirketi.
+film sektöründe etkileyici projeler sunmak ve memnuniyet veren gişe gelirleri elde etmek isteyen yapım şirketleri için güçlü bir film özellik analizi yapılması gerekli.
+
+
+## Q2: Proje Amacı
+
+Bu projede, IMDb puanlarına göre farklılık gösteren ve https://www.kaggle.com/datasets/isaactaylorofficial/imdb-10000-most-voted-feature-films-041118 adresinde bulunan datasetteki filmlerin özelliklerini analiz edeceğiz. Önce filmleri imdb skorlarına göre "5 ve üstü puana sahip filmler" ve "5 altı puana sahip olan filmler" olarak iki gruba ayıracağız. Daha sonra her iki grupta da en sık görülen film türleri, yönetmenler ve film süreleri özelliklerini keşfedeceğiz. Bunları çeşitli grafik, tablo ve görsellerle ortaya koyarak filmerde bulunan çeşitli özelliklerin IMDB puanlaması üzerindeki etkisini film yapımcılarına sunacağız. Bu sayede film yapım şirketlerine kar artırıcı tavsiyelerde bulunmayı hedefliyoruz.
+
+
+## Q3: Veri seti keşifsel analizi
+Bu projede kullanılan veri seti Kaggle websitesinden indirilmiştir.
+
+Veri boyutları aşağıdaki gibidir:
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, results='asis'}
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(knitr)
+library(gridExtra)
+library(grid)
+
+# Veri setini yükleme
+movies <- read.csv("movies.csv")
+
+satirsayisi <- nrow(movies)
+sutunsayisi <- ncol(movies)
+cat("satır sayısı:", satirsayisi, ", ")
+cat("sütun sayısı:", sutunsayisi)
+```
+
+Proje için önemli olan sütunlar şunlardır:
+
+"Director" (Yönetmen): Filmin yönetmeninin adını içerir. Veri tipi karakter (character)dir.
+"Genre" (Tür): Filmin türünü içerir. Veri tipi karakter (character)dir.
+"Runtime" (Süre): Filmin süresini dakika cinsinden içerir. Veri tipi tamsayı (integer)dir.
+"Score" (IMDb Puanı): Filmin IMDb puanını içerir. Veri tipi sayısal (numeric)dir.
+
+Veri setinde eksik verilerin bulunup bulunmadığını inceledik.Veri setinde eksik(NA) değerler bulunmaktadır. Eksik verilerin toplam verilere oranı yaklaşık %5.22'dir. Ancak projemiz için önemli olan sütunlarda, yani "Director," "Genre," "Runtime," ve "Score" sütunlarında eksik veri bulunmamaktadır. Bu nedenle veri setinde herhangi bir veri silme veya veri ön işlemesi yapmamıza gerek yoktur.
+
+Bu aşamada veri üzerinde herhangi bir değişiklik yapmadık ve veri setimizi doğrudan analiz etmeye devam edeceğiz. Veri setimizin kalitesi projemizin ilerlemesi için uygun durumdadır.
+
+Aşağıda veri setimizin keşfi maksadıyla oluşturulan Veri Setinin Sütunları ve Veri Tipleri, Eksik verilerin toplam verilere oranı, Eksik Verilere Sahip İlk Birkaç Film ve IMDB puanlarının dağılımını gösteren; grafik, tablo ve istatistik sonuçları yer almaktadır.
+
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, results='asis'}
+
+
+# Veri setinin sütunlarının veri tiplerini özetleme
+data_types <- sapply(movies, class) %>% as.data.frame()
+colnames(data_types) <- c("DataType")
+rownames(data_types) <- colnames(movies)
+
+# Veri tiplerini tablo olarak gösterme
+kable(data_types, caption = "Veri Setinin Sütunları ve Veri Tipleri")
+
+# Eksik veri analizi
+total_values <- nrow(movies) * ncol(movies)
+missing_values <- sum(is.na(movies))
+missing_percentage <- (missing_values / total_values) * 100
+
+# Eksik verilerin yüzdesi
+cat("<b>Eksik verilerin toplam verilere oranı:</b> ", round(missing_percentage, 2), "%<br>")
+
+# Eksik verilerin birkaç örneğini gösterme
+movies_with_na <- movies %>% filter(rowSums(is.na(.)) > 0) %>% head()
+kable(movies_with_na, caption = "<b>Eksik Verilere Sahip İlk Birkaç Film</b>")
+
+# Grafik örneği: IMDb Puanının Dağılımı
+ggplot(movies, aes(x = Score)) +
+  geom_histogram(bins = 30, fill = "blue", color = "black") +
+  labs(title = "IMDb Puanının Dağılımı", x = "IMDb Puanı", y = "Film Sayısı")
+
+library(testthat)
+test_output <- capture.output(test_file("Q3_tests_bugatekin_ali_170401003.R"))
+
+```
+
+
+
+
+## Q6: Veri analizi
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, results='asis'}
+# Veri tiplerini kontrol etme ve gerekirse düzenleme
+movies <- movies %>%
+  mutate(Score = as.numeric(Score),
+         Runtime = as.integer(Runtime))
+
+
+
+# 5 ve üzeri puan alan filmler
+high_score_movies <- movies %>%
+  filter(Score >= 5)
+
+# 5'in altında puan alan filmler
+low_score_movies <- movies %>%
+  filter(Score < 5)
+
+# IMDb 5 ve üzeri ve altı filmlerin sayısı
+high_score_movie_count <- nrow(high_score_movies)
+low_score_movie_count <- nrow(low_score_movies)
+
+# Türleri ve yönetmenleri ayırma ve en sık rastlananları bulma
+high_score_movies_separated <- high_score_movies %>%
+  separate_rows(Genre, sep = ", ") %>%
+  group_by(Genre) %>%
+  summarize(count = n()) %>%
+  arrange(desc(count)) %>%
+  slice_head(n = 3)
+
+low_score_movies_separated <- low_score_movies %>%
+  separate_rows(Genre, sep = ", ") %>%
+  group_by(Genre) %>%
+  summarize(count = n()) %>%
+  arrange(desc(count)) %>%
+  slice_head(n = 3)
+
+high_score_directors <- high_score_movies %>%
+  count(Director) %>%
+  arrange(desc(n)) %>%
+  slice_head(n = 3)
+
+low_score_directors <- low_score_movies %>%
+  count(Director) %>%
+  arrange(desc(n)) %>%
+  slice_head(n = 3)
+
+# Ortalama süreler
+high_score_avg_runtime <- mean(high_score_movies$Runtime)
+low_score_avg_runtime <- mean(low_score_movies$Runtime)
+
+# Sonuçları bir dataframe'e aktarma ve birleştirme
+high_score_results <- data.frame(
+  Group = "IMDb 5 ve Üstü",
+  Genre = high_score_movies_separated$Genre,
+  Count = high_score_movies_separated$count,
+  Director = high_score_directors$Director,
+  DirectorCount = high_score_directors$n
+)
+
+low_score_results <- data.frame(
+  Group = "IMDb 5 Altı",
+  Genre = low_score_movies_separated$Genre,
+  Count = low_score_movies_separated$count,
+  Director = low_score_directors$Director,
+  DirectorCount = low_score_directors$n
+)
+
+combined_results <- rbind(high_score_results, low_score_results)
+
+
+
+# Türler için grafikler oluşturma
+genre_plot1 <- ggplot(high_score_results, aes(x = Genre, y = Count, fill = Genre)) +
+  geom_bar(stat = "identity") +
+  theme_minimal() +
+  labs(title = "IMDb 5 ve Üstü Puan Alan Filmlerde En Sık Rastlanan Türler",
+       x = "Tür",
+       y = "Film Sayısı")
+
+genre_plot2 <- ggplot(low_score_results, aes(x = Genre, y = Count, fill = Genre)) +
+  geom_bar(stat = "identity") +
+  theme_minimal() +
+  labs(title = "IMDb 5 Altı Puan Alan Filmlerde En Sık Rastlanan Türler",
+       x = "Tür",
+       y = "Film Sayısı")
+
+# Yönetmenler için grafikler oluşturma
+director_plot1 <- ggplot(high_score_results, aes(x = Director, y = DirectorCount, fill = Director)) +
+  geom_bar(stat = "identity") +
+  theme_minimal() +
+  labs(title = "IMDb 5 ve Üstü Puan Alan Filmlerde En Sık Rastlanan Yönetmenler",
+       x = "Yönetmen",
+       y = "Film Sayısı")
+
+director_plot2 <- ggplot(low_score_results, aes(x = Director, y = DirectorCount, fill = Director)) +
+  geom_bar(stat = "identity") +
+  theme_minimal() +
+  labs(title = "IMDb 5 Altı Puan Alan Filmlerde En Sık Rastlanan Yönetmenler",
+       x = "Yönetmen",
+       y = "Film Sayısı")
+
+# Tablo ve grafikleri bir arada gösterme
+grid_table <- tableGrob(combined_results)
+
+# Grafikleri düzenleme
+print(genre_plot1)
+print(director_plot1)
+
+print(genre_plot2)
+print(director_plot2)
+
+```
+
+
+
+
+                                              analiz Sonuçları Tablosu
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, results='asis'}
+
+# Tabloyu ayrı bir şekilde görüntüleme
+table_plot <- grid.arrange(tableGrob(combined_results), ncol = 1, heights = unit(1, "null"))
+```
+
+
+
+
+                                      Filmlerin ortalama sürelerinin analizi
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, results='asis'}
+
+# Sonuçları bir veri çerçevesi olarak birleştirme
+average_runtimes <- data.frame(
+  Grup = c("IMDb 5 ve Üstü", "IMDb 5 Altı"),
+  "Ortalama Süre" = c(high_score_avg_runtime, low_score_avg_runtime)
+)
+
+# Ortalama süreleri tablo olarak yazdırma
+average_runtimes_table <- tableGrob(average_runtimes)
+
+# Tabloyu görsel olarak gösterme
+grid.arrange(average_runtimes_table, ncol = 1, heights = unit.c(unit(3, "null"), unit(1, "null")))
+
+
+
+test_output <- capture.output(test_file("Q6_tests_bugatekin_ali_170401003.R"))
+
+
+```
+
+
+## Q7 : Sonuç değerlendirme, tavsiyeler
+
+Bu bölümde, analizde kullanılan tüm verilere dayalı olarak sonuçları değerlendireceğiz ve gelecekteki çalışmalara yönelik tavsiyelerde bulunacağız.
+
+### Sonuçların Geçerliliği ve Yorumları
+Analizimiz, IMDb puanı üzerinde etkili olan film türleri ve yönetmenler hakkında önemli bilgiler sunmaktadır. Özellikle, "IMDb 5 ve Üstü" ve "IMDb 5 Altı" kategorilerindeki popüler türler ve yönetmenler hakkında şunları söyleyebiliriz:
+
+IMDb 5 ve Üstü Kategorisi: Bu kategoride en yaygın türler **Action, Drama ve Comedy'dir**. En çok film çeken yönetmenler ise **Woody Allen, Alfred Hitchcock ve Clint Eastwood**'dur. Ortalama süreleri **109.42** dakikadır.
+
+IMDb 5 Altı Kategorisi: Bu kategoride ise **Action, Comedy ve Horror türleri daha yaygındır**. **Tyler Perry, Uwe Boll ve Jason Friedberg** gibi yönetmenler bu kategoride öne çıkar. Ortalama süreleri **96.97** dakikadır.
+
+Bu sonuçlar, farklı türlerin ve yönetmenlerin IMDb puanını etkileyebileceğini göstermektedir.
+
+###  Projenin Başarısı
+Proje, geniş veri seti kullanarak çeşitli türlerin ve yönetmenlerin performansını başarıyla analiz etmiştir. Sonuçlar, film yapımcıları ve yönetmenler için önemli bir yol gösterici olabilir. Özellikle, hedeflenen IMDb puanına ulaşmak için en uygun türleri ve yönetmenleri seçme konusunda yardımcı olabilir.
+
+###  Sonuçların Kullanımı
+Bu sonuçlar, film endüstrisi profesyonelleri, araştırmacılar ve film meraklıları için değerlidir. Film yapımcıları, hedef izleyici kitlesine en uygun türleri ve yönetmenleri seçerek projelerini daha başarılı hale getirebilirler. Aynı zamanda, analizde ortaya çıkan kuvvetli ve zayıf yanlar da göz önünde bulundurularak gelecekteki projelerde daha bilinçli kararlar alınabilir.
+
+###  Tavsiyeler
+Bu çalışmayı ilerletmek isteyenler için bazı tavsiyeler:
+
+- **Daha Geniş Bir Veri Seti:** Analizi daha geniş bir veri seti ile tekrarlamak, sonuçların genelleştirilebilirliğini artırabilir.
+
+- **Diğer Faktörleri İnceleyin:** Filmlerin IMDb puanını etkileyen diğer faktörleri (oyuncu kadrosu, bütçe, tanıtım) dikkate alarak daha kapsamlı bir analiz yapabilirsiniz.
+
+- **Zaman İçi Değişiklikleri İnceleyin:** Film endüstrisindeki trendler zaman içinde değişebilir, bu nedenle analizi güncel tutmak önemlidir.
+
+- **Daha İleri Görselleştirmeler:** Grafikler ve görsel öğeler kullanarak sonuçları daha etkili bir şekilde iletebilirsiniz.
+
+- **Yönetmen ve Tür Bilgisi:** Analizin sonuçlarına daha fazla ayrıntı eklemek için, film türleri ve yönetmenler hakkında daha fazla bilgi sunabilirsiniz. Örneğin, en çok çalışan yönetmenlerin filmografisi hakkında bilgi verebilirsiniz.
+
